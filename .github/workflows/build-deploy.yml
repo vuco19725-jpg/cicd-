@@ -23,7 +23,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - run: npm ci
+      - run: npm install
         working-directory: web
       - run: npm test
         working-directory: web
@@ -70,8 +70,14 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    if: "!contains(github.ref, '-canary')"
+    if: "!contains(github.ref, '-canary') && vars.SSH_HOST != ''"
     steps:
+      - name: Check SSH secrets
+        run: |
+          if [ -z "${{ secrets.SSH_HOST }}" ]; then
+            echo "SSH_HOST not configured, skipping deploy"
+            exit 0
+          fi
       - name: Deploy to production
         uses: appleboy/ssh-action@v1
         with:
@@ -90,6 +96,12 @@ jobs:
     timeout-minutes: 10
     if: contains(github.ref, '-canary')
     steps:
+      - name: Check SSH secrets
+        run: |
+          if [ -z "${{ secrets.SSH_HOST }}" ]; then
+            echo "SSH_HOST not configured, skipping canary deploy"
+            exit 0
+          fi
       - name: Deploy canary
         uses: appleboy/ssh-action@v1
         with:
@@ -112,6 +124,10 @@ jobs:
 
       - name: Health check
         run: |
+          if [ -z "${{ secrets.SSH_HOST }}" ]; then
+            echo "SSH_HOST not configured, skipping health check"
+            exit 0
+          fi
           curl -f --retry 5 --retry-delay 5 http://${{ secrets.SSH_HOST }}:8003/ || exit 1
 
       - name: Notify success

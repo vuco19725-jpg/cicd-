@@ -17,7 +17,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - run: npm ci
+      - run: npm install
         working-directory: web
       - run: npm run lint
         working-directory: web
@@ -30,7 +30,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - run: npm ci
+      - run: npm install
         working-directory: web
       - run: npm run build
         working-directory: web
@@ -43,7 +43,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - run: npm ci
+      - run: npm install
         working-directory: web
       - run: npm test
         working-directory: web
@@ -65,6 +65,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     if: github.event.pull_request && github.actor != 'dependabot[bot]'
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -73,12 +75,36 @@ jobs:
       - name: Generate diff
         run: |
           git diff origin/main...HEAD > /tmp/pr.diff
+          echo "Diff lines: $(wc -l < /tmp/pr.diff)"
 
       - name: AI Code Review
-        uses: anthropics/claude-code-action@v1
-        with:
-          prompt: |
-            Read the file `.github/ai-review-rules.md` for the review rules.
-            Then read the diff at /tmp/pr.diff.
-            Review the code changes against the rules and post your findings as PR review comments.
-            For each issue found, include the file path, line number, severity (high/medium/low), and a clear explanation.
+        if: env.ANTHROPIC_API_KEY != ''
+        run: |
+          REVIEW_RULES=$(cat .github/ai-review-rules.md)
+          DIFF=$(cat /tmp/pr.diff)
+
+          RESPONSE=$(curl -s https://api.anthropic.com/v1/messages \
+            -H "x-api-key: $ANTHROPIC_API_KEY" \
+            -H "anthropic-version: 2023-06-01" \
+            -H "content-type: application/json" \
+            -d "$(jq -n \
+              --arg rules "$REVIEW_RULES" \
+              --arg diff "$DIFF" \
+              '{
+                model: "claude-sonnet-4-6",
+                max_tokens: 2048,
+                messages: [{
+                  role: "user",
+                  content: "You are a code reviewer. Review the following git diff against these rules:\n\n\($rules)\n\nGit diff:\n```\n\($diff)\n```\n\nFor each violation, output: file, line, severity (HIGH/MEDIUM/LOW), and explanation."
+                }]
+              }')")
+
+          echo "$RESPONSE" | jq -r '.content[0].text' > /tmp/review.md
+
+          gh pr review ${{ github.event.pull_request.number }} --body-file /tmp/review.md --comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Skip AI review
+        if: env.ANTHROPIC_API_KEY == ''
+        run: echo "AI review skipped: ANTHROPIC_API_KEY secret not configured"
