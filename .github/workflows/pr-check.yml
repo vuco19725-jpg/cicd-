@@ -1,0 +1,84 @@
+name: PR Check
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci
+        working-directory: web
+      - run: npm run lint
+        working-directory: web
+
+  build-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci
+        working-directory: web
+      - run: npm run build
+        working-directory: web
+
+  unit-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci
+        working-directory: web
+      - run: npm test
+        working-directory: web
+
+  security-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          exit-code: 1
+
+  ai-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.event.pull_request && github.actor != 'dependabot[bot]'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate diff
+        run: |
+          git diff origin/main...HEAD > /tmp/pr.diff
+
+      - name: AI Code Review
+        uses: anthropics/claude-code-action@v1
+        with:
+          prompt: |
+            Read the file `.github/ai-review-rules.md` for the review rules.
+            Then read the diff at /tmp/pr.diff.
+            Review the code changes against the rules and post your findings as PR review comments.
+            For each issue found, include the file path, line number, severity (high/medium/low), and a clear explanation.

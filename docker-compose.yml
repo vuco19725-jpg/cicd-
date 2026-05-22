@@ -1,0 +1,18 @@
+version: "3.8"
+
+services:
+  server:
+    image: ghcr.io/vuco19725-jpg/cicd--server:latest
+    container_name: xiaozhi-server-stable
+    ports:
+      - "8003:8003"
+    restart: always
+
+  web:
+    image: ghcr.io/vuco19725-jpg/cicd--web:latest
+    container_name: xiaozhi-web-stable
+    ports:
+      - "80:80"
+    restart: always
+    depends_on:
+      - server

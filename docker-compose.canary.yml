@@ -1,0 +1,18 @@
+version: "3.8"
+
+services:
+  server-canary:
+    image: ghcr.io/vuco19725-jpg/cicd--server:${{ TAG }}
+    container_name: xiaozhi-server-canary
+    ports:
+      - "8004:8003"
+    restart: always
+
+  web-canary:
+    image: ghcr.io/vuco19725-jpg/cicd--web:${{ TAG }}
+    container_name: xiaozhi-web-canary
+    ports:
+      - "81:80"
+    restart: always
+    depends_on:
+      - server-canary

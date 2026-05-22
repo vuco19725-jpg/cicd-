@@ -1,0 +1,123 @@
+name: Build and Deploy
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME_SERVER: ${{ github.repository }}-server
+  IMAGE_NAME_WEB: ${{ github.repository }}-web
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci
+        working-directory: web
+      - run: npm test
+        working-directory: web
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract tag name
+        id: tag
+        run: echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push server image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: server/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_SERVER }}:${{ steps.tag.outputs.TAG }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_SERVER }}:latest
+
+      - name: Build and push web image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: web/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_WEB }}:${{ steps.tag.outputs.TAG }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_WEB }}:latest
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: "!contains(github.ref, '-canary')"
+    steps:
+      - name: Deploy to production
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd /opt/app
+            docker compose pull
+            docker compose up -d --remove-orphans
+            docker image prune -f
+
+  canary-deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: contains(github.ref, '-canary')
+    steps:
+      - name: Deploy canary
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd /opt/app
+            docker compose -f docker-compose.canary.yml pull
+            docker compose -f docker-compose.canary.yml up -d --remove-orphans
+
+  health-check:
+    needs: [deploy, canary-deploy]
+    if: "!cancelled()"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Wait for startup
+        run: sleep 10
+
+      - name: Health check
+        run: |
+          curl -f --retry 5 --retry-delay 5 http://${{ secrets.SSH_HOST }}:8003/ || exit 1
+
+      - name: Notify success
+        if: success()
+        run: echo "Deploy succeeded: ${GITHUB_REF#refs/tags/}"
+
+      - name: Notify failure
+        if: failure()
+        run: echo "Deploy FAILED: ${GITHUB_REF#refs/tags/}"
