@@ -199,12 +199,14 @@ echo "[" > "$INLINE_FILE"
 first=1
 
 while IFS= read -r line; do
-  if echo "$line" | grep -qP '^\[(CRITICAL|HIGH|MEDIUM|LOW)\]\s+\S+:\d+\s+'; then
-    severity=$(echo "$line" | sed -E 's/^\[(CRITICAL|HIGH|MEDIUM|LOW)\].*/\1/')
-    path=$(echo "$line" | sed -E 's/^\[[A-Z]+\]\s+//' | sed -E 's/:(\d+)\s+.*//')
-    linenum=$(echo "$line" | sed -E 's/^\[[A-Z]+\]\s+[^:]+:(\d+)\s+.*/\1/')
-    body=$(echo "$line" | sed -E 's/^\[[A-Z]+\]\s+[^:]+:[0-9]+\s+//')
+  # Parse: [SEVERITY] path:line description
+  if [[ "$line" =~ ^\[(CRITICAL|HIGH|MEDIUM|LOW)\]\ ([^:]+):([0-9]+)\ (.*) ]]; then
+    severity="${BASH_REMATCH[1]}"
+    path="${BASH_REMATCH[2]}"
+    linenum="${BASH_REMATCH[3]}"
+    body="${BASH_REMATCH[4]}"
 
+    # Validate file exists (relative to repo root)
     if [ -f "$path" ] && [ "$linenum" -gt 0 ] 2>/dev/null; then
       [ $first -eq 0 ] && echo "," >> "$INLINE_FILE"
       first=0
@@ -212,7 +214,7 @@ while IFS= read -r line; do
         '{path: $path, line: $line, body: $body}' >> "$INLINE_FILE"
       echo "  INLINE: $path:$linenum [$severity]"
     else
-      echo "  SKIP (file not found): $path:$linenum"
+      echo "  SKIP (file not found): path=[$path] line=$linenum"
     fi
   fi
 done < /tmp/review-raw.txt
