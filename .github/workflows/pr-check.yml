@@ -66,7 +66,7 @@ jobs:
     timeout-minutes: 5
     if: github.event.pull_request && github.actor != 'dependabot[bot]'
     env:
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -75,36 +75,58 @@ jobs:
       - name: Generate diff
         run: |
           git diff origin/main...HEAD > /tmp/pr.diff
-          echo "Diff lines: $(wc -l < /tmp/pr.diff)"
+          DIFF_SIZE=$(wc -c < /tmp/pr.diff)
+          echo "Diff size: $DIFF_SIZE bytes ($(wc -l < /tmp/pr.diff) lines)"
+
+          # Truncate if diff exceeds ~80KB to stay within context limits
+          if [ "$DIFF_SIZE" -gt 80000 ]; then
+            head -c 80000 /tmp/pr.diff > /tmp/pr-truncated.diff
+            echo "" >> /tmp/pr-truncated.diff
+            echo "[WARNING] Diff was truncated from $DIFF_SIZE to 80000 bytes. Some files may not be reviewed." >> /tmp/pr-truncated.diff
+            mv /tmp/pr-truncated.diff /tmp/pr.diff
+          fi
 
       - name: AI Code Review
-        if: env.ANTHROPIC_API_KEY != ''
+        if: env.DEEPSEEK_API_KEY != ''
         run: |
           REVIEW_RULES=$(cat .github/ai-review-rules.md)
           DIFF=$(cat /tmp/pr.diff)
+          PR_NUMBER="${{ github.event.pull_request.number }}"
 
-          RESPONSE=$(curl -s https://api.anthropic.com/v1/messages \
-            -H "x-api-key: $ANTHROPIC_API_KEY" \
+          echo "Sending diff to DeepSeek for review..."
+
+          RESPONSE=$(curl -s --max-time 120 \
+            https://api.deepseek.com/anthropic/v1/messages \
+            -H "x-api-key: $DEEPSEEK_API_KEY" \
             -H "anthropic-version: 2023-06-01" \
             -H "content-type: application/json" \
             -d "$(jq -n \
               --arg rules "$REVIEW_RULES" \
               --arg diff "$DIFF" \
               '{
-                model: "claude-sonnet-4-6",
+                model: "deepseek-v4-pro",
                 max_tokens: 2048,
                 messages: [{
                   role: "user",
-                  content: "You are a code reviewer. Review the following git diff against these rules:\n\n\($rules)\n\nGit diff:\n```\n\($diff)\n```\n\nFor each violation, output: file, line, severity (HIGH/MEDIUM/LOW), and explanation."
+                  content: "You are a code reviewer. Review the following git diff against the rules below. For each violation found, output exactly one line in this format:\n\n  [SEVERITY] file:line — explanation\n\nWhere SEVERITY is HIGH, MEDIUM, or LOW. If no violations are found, output \"No issues found.\"\n\nDo NOT output anything else — no preamble, no summary, no markdown headers.\n\n--- REVIEW RULES ---\n\($rules)\n\n--- GIT DIFF ---\n\($diff)"
                 }]
               }')")
 
-          echo "$RESPONSE" | jq -r '.content[0].text' > /tmp/review.md
-
-          gh pr review ${{ github.event.pull_request.number }} --body-file /tmp/review.md --comment
+          # Check if API call succeeded
+          if echo "$RESPONSE" | jq -e '.content[0].text' > /dev/null 2>&1; then
+            echo "$RESPONSE" | jq -r '.content[0].text' > /tmp/review.md
+            echo "=== AI Review Result ==="
+            cat /tmp/review.md
+            gh pr review "$PR_NUMBER" --body-file /tmp/review.md --comment
+          else
+            ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error.message // "Unknown API error"')
+            echo "AI review API error: $ERROR_MSG"
+            echo "AI review skipped due to API error: $ERROR_MSG" > /tmp/review.md
+            gh pr review "$PR_NUMBER" --body-file /tmp/review.md --comment
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Skip AI review
-        if: env.ANTHROPIC_API_KEY == ''
-        run: echo "AI review skipped: ANTHROPIC_API_KEY secret not configured"
+        if: env.DEEPSEEK_API_KEY == ''
+        run: echo "AI review skipped: DEEPSEEK_API_KEY secret not configured"
