@@ -1,6 +1,4 @@
-import { defineConfig } from "eslint";
-
-export default defineConfig([
+module.exports = [
   {
     files: ["src/**/*.js"],
     rules: {
@@ -8,4 +6,4 @@ export default defineConfig([
       "no-console": "off",
     },
   },
-]);
+];
