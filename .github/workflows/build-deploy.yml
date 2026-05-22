@@ -37,7 +37,7 @@ jobs:
 
       - name: Extract tag name
         id: tag
-        run: echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        run: echo "TAG=${{ github.ref_name }}" >> $GITHUB_OUTPUT
 
       - name: Log in to ghcr.io
         uses: docker/login-action@v3
@@ -132,8 +132,8 @@ jobs:
 
       - name: Notify success
         if: success()
-        run: echo "Deploy succeeded: ${GITHUB_REF#refs/tags/}"
+        run: echo "Deploy succeeded: ${{ github.ref_name }}"
 
       - name: Notify failure
         if: failure()
-        run: echo "Deploy FAILED: ${GITHUB_REF#refs/tags/}"
+        run: echo "Deploy FAILED: ${{ github.ref_name }}"
