@@ -43,11 +43,18 @@ RESPONSE=$(jq -n \
     -H "content-type: application/json" \
     -d @-)
 
+# Save raw response for debugging
+echo "$RESPONSE" > /tmp/ai-debug-response.json
+
 if echo "$RESPONSE" | jq -e '.content[0].text' > /dev/null 2>&1; then
   echo "$RESPONSE" | jq -r '.content[0].text' > "$REVIEW_FILE"
   echo "=== AI Review Result ==="
   cat "$REVIEW_FILE"
 else
+  echo "=== AI review failed - raw API response ==="
+  head -c 2000 /tmp/ai-debug-response.json
+  echo ""
+  echo "=== End of raw response ==="
   ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error.message // "Unknown API error"')
   echo "AI review API error: $ERROR_MSG"
   echo "AI review skipped due to API error: $ERROR_MSG" > "$REVIEW_FILE"
