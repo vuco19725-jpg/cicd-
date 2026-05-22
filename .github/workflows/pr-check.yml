@@ -64,7 +64,7 @@ jobs:
 
   ai-review:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     if: github.event.pull_request && github.actor != 'dependabot[bot]'
     env:
       DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
@@ -76,20 +76,11 @@ jobs:
       - name: Generate diff
         run: |
           git diff origin/main...HEAD > /tmp/pr.diff
-          DIFF_SIZE=$(wc -c < /tmp/pr.diff)
-          echo "Diff size: $DIFF_SIZE bytes ($(wc -l < /tmp/pr.diff) lines)"
-
-          # Truncate if diff exceeds ~80KB to stay within context limits
-          if [ "$DIFF_SIZE" -gt 80000 ]; then
-            head -c 80000 /tmp/pr.diff > /tmp/pr-truncated.diff
-            echo "" >> /tmp/pr-truncated.diff
-            echo "[WARNING] Diff was truncated from $DIFF_SIZE to 80000 bytes. Some files may not be reviewed." >> /tmp/pr-truncated.diff
-            mv /tmp/pr-truncated.diff /tmp/pr.diff
-          fi
+          echo "Diff: $(wc -c < /tmp/pr.diff) bytes, $(wc -l < /tmp/pr.diff) lines"
 
       - name: AI Code Review
         if: env.DEEPSEEK_API_KEY != ''
-        run: bash scripts/ai-review.sh "${{ github.event.pull_request.number }}"
+        run: bash scripts/ai-review.sh "${{ github.event.pull_request.number }}" "${{ github.event.pull_request.head.sha }}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
