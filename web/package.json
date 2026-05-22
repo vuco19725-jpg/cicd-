@@ -1,0 +1,12 @@
+{
+  "name": "cicd-web",
+  "private": true,
+  "scripts": {
+    "lint": "eslint src/",
+    "test": "node --test",
+    "build": "mkdir -p dist && cp src/index.js dist/"
+  },
+  "devDependencies": {
+    "eslint": "^9.0.0"
+  }
+}

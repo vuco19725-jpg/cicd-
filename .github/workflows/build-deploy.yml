@@ -70,7 +70,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    if: "!contains(github.ref, '-canary')"
+    if: "!contains(github.ref, '-canary') && vars.SSH_HOST != ''"
     steps:
       - name: Check SSH secrets
         run: |
