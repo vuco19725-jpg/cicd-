@@ -27,11 +27,11 @@ RESPONSE=$(jq -n \
     messages: [{
       role: "user",
       content: (
-        "You are a code reviewer. Review the git diff against the rules below. "
-        + "For each violation, output one line: [SEVERITY] file:line - explanation. "
-        + "If no violations found, output \"No issues found.\". "
-        + "Do NOT output preamble, summary, or markdown headers.\n\n"
-        + "--- REVIEW RULES ---\n\($rules)\n\n"
+        "你是一个代码审查员。请根据以下规则审查 git diff。"
+        + "对每个违规项，输出一行：[严重程度] 文件:行号 - 说明。"
+        + "如果没有发现问题，输出\"未发现问题。\""
+        + "不要输出前言、总结或 markdown 标题。使用中文。\n\n"
+        + "--- 审查规则 ---\n\($rules)\n\n"
         + "--- GIT DIFF ---\n\($diff)"
       )
     }]
