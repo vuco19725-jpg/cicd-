@@ -5,29 +5,22 @@ on:
       - "v*"
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Set image tag
-        id: tag
-        run: echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-      - uses: docker/build-push-action@v6
-        with:
-          context: . ; file: server/Dockerfile ; push: true
-          tags: ghcr.io/vuco19725-jpg/cicd--server:${{ steps.tag.outputs.tag }}
-      - uses: docker/build-push-action@v6
-        with:
-          context: . ; file: web/Dockerfile ; push: true
-          tags: ghcr.io/vuco19725-jpg/cicd--web:${{ steps.tag.outputs.tag }}
-
-  deploy:
-    needs: build
+  build-and-deploy:
     runs-on: [self-hosted, prod]
     steps:
-      - run: /opt/projects/cicd-/deploy.sh
+      - uses: actions/checkout@v4
+
+      - name: Build server image
+        run: docker build -t cicd-server -f server/Dockerfile .
+
+      - name: Build web image
+        run: docker build -t cicd-web -f web/Dockerfile .
+
+      - name: Deploy
+        run: |
+          cd /opt/projects/cicd-
+          docker compose down 2>/dev/null || true
+          docker tag cicd-server ghcr.io/vuco19725-jpg/cicd--server:latest
+          docker tag cicd-web ghcr.io/vuco19725-jpg/cicd--web:latest
+          docker compose up -d --wait
+          docker compose ps
