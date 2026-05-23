@@ -9,11 +9,9 @@ permissions:
 
 jobs:
   pr-check:
-    uses: vuco19725-jpg/cicd-workflows/.github/workflows/pr-check.yml@3fd7777
+    uses: vuco19725-jpg/cicd-workflows/.github/workflows/pr-check.yml@v1
     with:
       language: node
-      enable-config-check: false
-      enable-codeql: false
     secrets:
       DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
       BOT_PAT: ${{ secrets.BOT_PAT }}
