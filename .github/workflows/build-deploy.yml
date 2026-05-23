@@ -1,0 +1,33 @@
+name: Build and Deploy
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set image tag
+        id: tag
+        run: echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+      - uses: docker/build-push-action@v6
+        with:
+          context: . ; file: server/Dockerfile ; push: true
+          tags: ghcr.io/vuco19725-jpg/cicd--server:${{ steps.tag.outputs.tag }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: . ; file: web/Dockerfile ; push: true
+          tags: ghcr.io/vuco19725-jpg/cicd--web:${{ steps.tag.outputs.tag }}
+
+  deploy:
+    needs: build
+    runs-on: [self-hosted, prod]
+    steps:
+      - run: /opt/projects/cicd-/deploy.sh
