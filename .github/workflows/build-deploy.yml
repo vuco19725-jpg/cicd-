@@ -12,22 +12,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
       - name: Build server (green)
-        run: |
-          docker buildx build \
-            --cache-from type=local,src=/tmp/docker-cache \
-            --cache-to type=local,dest=/tmp/docker-cache,mode=max \
-            --load -t cicd-server:green -f server/Dockerfile .
+        run: docker build -t cicd-server:green -f server/Dockerfile .
 
       - name: Build web (green)
-        run: |
-          docker buildx build \
-            --cache-from type=local,src=/tmp/docker-cache \
-            --cache-to type=local,dest=/tmp/docker-cache,mode=max \
-            --load -t cicd-web:green -f web/Dockerfile .
+        run: docker build -t cicd-web:green -f web/Dockerfile .
 
       - name: Deploy green
         run: /opt/projects/cicd-/deploy.sh green
