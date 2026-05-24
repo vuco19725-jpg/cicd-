@@ -1,8 +1,7 @@
 name: Build and Deploy
 on:
   push:
-    tags:
-      - "v*"
+    tags: ["v*"]
 
 jobs:
   build-and-deploy:
@@ -13,25 +12,43 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build server image
-        run: docker build -t cicd-server -f server/Dockerfile .
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Build web image
-        run: docker build -t cicd-web -f web/Dockerfile .
-
-      - name: Deploy
+      - name: Build server (green)
         run: |
-          cd /opt/projects/cicd-
-          docker compose down 2>/dev/null || true
-          docker tag cicd-server ghcr.io/vuco19725-jpg/cicd--server:latest
-          docker tag cicd-web ghcr.io/vuco19725-jpg/cicd--web:latest
-          docker compose up -d
+          docker buildx build \
+            --cache-from type=local,src=/tmp/docker-cache \
+            --cache-to type=local,dest=/tmp/docker-cache,mode=max \
+            --load -t cicd-server:green -f server/Dockerfile .
 
-      - name: Health check
+      - name: Build web (green)
+        run: |
+          docker buildx build \
+            --cache-from type=local,src=/tmp/docker-cache \
+            --cache-to type=local,dest=/tmp/docker-cache,mode=max \
+            --load -t cicd-web:green -f web/Dockerfile .
+
+      - name: Deploy green
+        run: /opt/projects/cicd-/deploy.sh green
+
+      - name: Health check green
         run: |
           for i in 1 2 3 4 5; do
             sleep 3
-            curl -sf http://localhost:8003/ && echo "Server OK" && exit 0 || echo "Attempt $i failed"
+            curl -sf http://localhost:8004/ && echo "Green OK" && exit 0
           done
-          echo "Health check failed after 5 attempts"
+          echo "Green failed - rolling back"
+          docker compose -f /opt/projects/cicd-/docker-compose.yml stop server-green web-green
           exit 1
+
+      - name: Promote green to blue
+        run: |
+          cd /opt/projects/cicd-
+          docker tag cicd-server:green cicd-server:blue
+          docker tag cicd-web:green cicd-web:blue
+          docker compose stop server-blue web-blue 2>/dev/null || true
+          docker compose rm -f server-blue web-blue 2>/dev/null || true
+          docker compose up -d server-blue web-blue
+          docker compose stop server-green web-green
+          docker compose ps
