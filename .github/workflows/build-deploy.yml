@@ -52,8 +52,6 @@ jobs:
             TITLE="❌ 部署失败"
             COLOR="red"
           fi
-          curl -s -X POST "$FEISHU_WEBHOOK" \
+          curl -s -X POST "https://open.feishu.cn/open-apis/bot/v2/hook/a32df52c-32df-47f8-a620-62ac45c78dee" \
             -H "Content-Type: application/json" \
-            -d "{\"msg_type\":\"interactive\",\"card\":{\"header\":{\"title\":{\"content\":\"$TITLE\",\"tag\":\"plain_text\"},\"template\":\"$COLOR\"},\"elements\":[{\"tag\":\"div\",\"text\":{\"content\":\"**版本**: ${{ github.ref_name }}\n**分支**: ${{ github.ref_name }}\n**触发者**: ${{ github.actor }}\n**状态**: ${{ job.status }}\",\"tag\":\"lark_md\"}},{\"tag\":\"action\",\"actions\":[{\"tag\":\"button\",\"text\":{\"content\":\"查看详情\",\"tag\":\"plain_text\"},\"url\":\"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\",\"type\":\"primary\"}]}]}}"
-        env:
-          FEISHU_WEBHOOK: ${{ secrets.FEISHU_WEBHOOK }}
+            -d "{\"msg_type\":\"interactive\",\"card\":{\"header\":{\"title\":{\"content\":\"$TITLE\",\"tag\":\"plain_text\"},\"template\":\"$COLOR\"},\"elements\":[{\"tag\":\"div\",\"text\":{\"content\":\"**版本**: ${{ github.ref_name }}\n**触发者**: ${{ github.actor }}\n**状态**: ${{ job.status }}\",\"tag\":\"lark_md\"}},{\"tag\":\"action\",\"actions\":[{\"tag\":\"button\",\"text\":{\"content\":\"查看详情\",\"tag\":\"plain_text\"},\"url\":\"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\",\"type\":\"primary\"}]}]}}"
