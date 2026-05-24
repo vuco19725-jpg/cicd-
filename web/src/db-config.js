@@ -1,0 +1,1 @@
+const DB_PASSWORD = "admin123";
