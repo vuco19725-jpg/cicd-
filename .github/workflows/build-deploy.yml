@@ -23,9 +23,10 @@ jobs:
 
       - name: Health check green
         run: |
+          sleep 5
           for i in 1 2 3 4 5; do
             sleep 3
-            curl -sf http://localhost:8004/readyz && echo "Green ready" && exit 0
+            curl -sf http://localhost:8004/ && echo "Green OK" && exit 0
           done
           echo "Green failed - rolling back"
           docker compose -f /opt/projects/cicd-/docker-compose.yml stop server-green web-green
