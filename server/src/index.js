@@ -22,8 +22,7 @@ const server = http.createServer((req, res) => {
   if (req.url === "/healthz") return handleHealthz(res);
   if (req.url === "/readyz") return handleReadyz(res);
   res.writeHead(200, { "Content-Type": "text/plain" });
-  res.end("Hello from cicd-server
-");
+  res.end("Hello from cicd-server\n");
 });
 
 server.listen(PORT, () => {
