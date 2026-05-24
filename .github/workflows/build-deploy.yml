@@ -7,6 +7,9 @@ on:
 jobs:
   build-and-deploy:
     runs-on: [self-hosted, prod]
+    environment:
+      name: production
+      url: http://8.136.217.93:8081
     steps:
       - uses: actions/checkout@v4
 
@@ -22,5 +25,13 @@ jobs:
           docker compose down 2>/dev/null || true
           docker tag cicd-server ghcr.io/vuco19725-jpg/cicd--server:latest
           docker tag cicd-web ghcr.io/vuco19725-jpg/cicd--web:latest
-          docker compose up -d --wait
-          docker compose ps
+          docker compose up -d
+
+      - name: Health check
+        run: |
+          for i in 1 2 3 4 5; do
+            sleep 3
+            curl -sf http://localhost:8003/ && echo "Server OK" && exit 0 || echo "Attempt $i failed"
+          done
+          echo "Health check failed after 5 attempts"
+          exit 1
