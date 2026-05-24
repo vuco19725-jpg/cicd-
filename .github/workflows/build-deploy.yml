@@ -1,1 +1,59 @@
-"name: Build and Deploy on: push: tags: ["v*"] jobs: build-and-deploy: runs-on: [self-hosted, prod] environment: name: production url: http://8.136.217.93:8081 steps: - uses: actions/checkout@v4 - name: Build server (green) run: docker build -t cicd-server:green -f server/Dockerfile . - name: Build web (green) run: docker build -t cicd-web:green -f web/Dockerfile . - name: Deploy green run: /opt/projects/cicd-/deploy.sh green - name: Health check green run: | for i in 1 2 3 4 5; do sleep 3 curl -sf http://localhost:8004/ && echo "Green OK" && exit 0 done echo "Green failed - rolling back" docker compose -f /opt/projects/cicd-/docker-compose.yml stop server-green web-green exit 1 - name: Promote green to blue run: | cd /opt/projects/cicd- docker tag cicd-server:green cicd-server:blue docker tag cicd-web:green cicd-web:blue docker compose stop server-blue web-blue 2>/dev/null || true docker compose rm -f server-blue web-blue 2>/dev/null || true docker compose up -d server-blue web-blue docker compose stop server-green web-green docker compose ps - name: Cleanup old images if: always() run: docker image prune -af --filter "until=24h" 2>/dev/null || true - name: Notify Feishu if: always() env: FEISHU_WEBHOOK: ${{ secrets.FEISHU_WEBHOOK }} run: | if [ "${{ job.status }}" = "success" ]; then TITLE="✅ 部署成功"; COLOR="green" else TITLE="❌ 部署失败"; COLOR="red" fi curl -s -X POST "$FEISHU_WEBHOOK" \ -H "Content-Type: application/json" \ -d "{\"msg_type\":\"interactive\",\"card\":{\"header\":{\"title\":{\"content\":\"$TITLE\",\"tag\":\"plain_text\"},\"template\":\"$COLOR\"},\"elements\":[{\"tag\":\"div\",\"text\":{\"content\":\"**版本**: ${{ github.ref_name }}\n**触发者**: ${{ github.actor }}\n**状态**: ${{ job.status }}\",\"tag\":\"lark_md\"}},{\"tag\":\"action\",\"actions\":[{\"tag\":\"button\",\"text\":{\"content\":\"查看详情\",\"tag\":\"plain_text\"},\"url\":\"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\",\"type\":\"primary\"}]}]}}""
+name: Build and Deploy
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build-and-deploy:
+    runs-on: [self-hosted, prod]
+    environment:
+      name: production
+      url: http://8.136.217.93:8081
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build server (green)
+        run: docker build -t cicd-server:green -f server/Dockerfile .
+
+      - name: Build web (green)
+        run: docker build -t cicd-web:green -f web/Dockerfile .
+
+      - name: Deploy green
+        run: /opt/projects/cicd-/deploy.sh green
+
+      - name: Health check green
+        run: |
+          for i in 1 2 3 4 5; do
+            sleep 3
+            curl -sf http://localhost:8004/ && echo "Green OK" && exit 0
+          done
+          echo "Green failed - rolling back"
+          docker compose -f /opt/projects/cicd-/docker-compose.yml stop server-green web-green
+          exit 1
+
+      - name: Promote green to blue
+        run: |
+          cd /opt/projects/cicd-
+          docker tag cicd-server:green cicd-server:blue
+          docker tag cicd-web:green cicd-web:blue
+          docker compose stop server-blue web-blue 2>/dev/null || true
+          docker compose rm -f server-blue web-blue 2>/dev/null || true
+          docker compose up -d server-blue web-blue
+          docker compose stop server-green web-green
+          docker compose ps
+
+      - name: Cleanup old images
+        if: always()
+        run: docker image prune -af --filter "until=24h" 2>/dev/null || true
+
+      - name: Notify Feishu
+        if: always()
+        env:
+          FEISHU_WEBHOOK: ${{ secrets.FEISHU_WEBHOOK }}
+        run: |
+          if [ "${{ job.status }}" = "success" ]; then
+            TITLE="Deploy OK"; COLOR="green"
+          else
+            TITLE="Deploy FAILED"; COLOR="red"
+          fi
+          curl -s -X POST "$FEISHU_WEBHOOK"             -H "Content-Type: application/json"             -d '{"msg_type":"interactive","card":{"header":{"title":{"content":"'"$TITLE"'","tag":"plain_text"},"template":"'"$COLOR"'"},"elements":[{"tag":"div","text":{"content":"Version: ${{ github.ref_name }}","tag":"lark_md"}},{"tag":"action","actions":[{"tag":"button","text":{"content":"View","tag":"plain_text"},"url":"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}","type":"primary"}]}]}}'
