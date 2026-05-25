@@ -12,10 +12,10 @@ jobs:
     uses: vuco19725-jpg/cicd-workflows/.github/workflows/pr-check.yml@main
     with:
       language: node
-              lint-command: 'echo lint pass'
-              build-command: 'echo build pass'
-              test-command: 'echo test pass'
-              enable-config-check: true
+      lint-command: 'echo lint pass'
+      build-command: 'echo build pass'
+      test-command: 'echo test pass'
+      enable-config-check: true
     secrets:
       DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
