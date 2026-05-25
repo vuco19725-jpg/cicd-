@@ -1,4 +1,5 @@
 #!/bin/bash
+#这里是我的修改
 set -e
 
 PR_NUMBER="$1"
