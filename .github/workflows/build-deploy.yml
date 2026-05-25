@@ -10,7 +10,7 @@ jobs:
       name: production
       url: http://8.136.217.93:8081
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Build server (green)
         run: docker build -t cicd-server:green -t cicd-server:${{ github.ref_name }} -f server/Dockerfile .
